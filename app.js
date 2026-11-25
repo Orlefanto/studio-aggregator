@@ -28,6 +28,10 @@ const CALENDAR_LINKS = {
   }
 };
 
+// === РАБОЧИЕ ЧАСЫ ДЛЯ ПОКАЗА (с 07:00 до 21:00) ===
+const WORK_FROM = 7 * 60; // 07:00
+const WORK_TO = 21 * 60;  // 21:00
+
 const D = window.DATA;
 const MONTHS = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
@@ -49,10 +53,21 @@ function dur(m){
   if(m%60===0){const h=m/60;return h+" "+plural(h,"час","часа","часов");}
   return String(Math.round(m/60*100)/100).replace(".",",")+" часа";
 }
+function clampList(list){
+  const out = [];
+  for(const x of (list || [])){
+    const s = Math.max(x.s, WORK_FROM), e = Math.min(x.e, WORK_TO);
+    if(e > s) out.push(x.t !== undefined ? {s, e, t: x.t} : {s, e});
+  }
+  return out;
+}
 const studio = id => D.studios.find(s=>s.id===id);
-const dayOf = (s,h,ds) => (s.halls[h]&&s.halls[h].days[ds])||null;
+const dayOf = (s,h,ds) => {
+  const d = s.halls[h] && s.halls[h].days[ds];
+  return d ? { busy: clampList(d.busy), free: clampList(d.free) } : null;
+};
 const evName = e => (e.t && !/^(busy|занято)$/i.test(String(e.t).trim())) ? e.t : "";
-const busyLabel = e => (e.s===0&&e.e===1440) ? "весь день занято" : fmt(e.s)+" занято (на "+dur(e.e-e.s)+")";
+const busyLabel = e => (e.s<=WORK_FROM&&e.e>=WORK_TO) ? "весь день занято" : fmt(e.s)+" занято (на "+dur(e.e-e.s)+")";
 const busyTip = e => fmt(e.s)+"-"+fmt(e.e)+(evName(e)?" · "+evName(e):"");
 const hallTip = x => "Не удалось обновить: "+x.error+(x.updated?" (актуальные данные на "+x.updated+")":"");
 
@@ -321,32 +336,29 @@ function measureModal(){
 function dayModal(id,h,ds){ state.modal={id,h,ds}; state.mmode=state.mode; state.modalMinH=0; openModal(modalBody()); measureModal(); }
 
 function findOverlap(list, a, b){ return (list||[]).find(x => x.s < b && x.e > a) || null; }
-function slotInfo(day, m, isNight){
+function slotInfo(day, m){
   if(!day) return { cls:"off", tip:"Нет данных" };
-  let bu = findOverlap(day.busy, m, m+30);
-  if(!bu && isNight) bu = findOverlap(day.busy, m+1440, m+1470);
+  const bu = findOverlap(day.busy, m, m+30);
   if(bu){
     const name = evName(bu);
     return { cls:"busy", tip: fmt(bu.s)+"-"+fmt(bu.e)+(name?" · "+name:" · занято") };
   }
-  let fr = findOverlap(day.free, m, m+30);
-  if(!fr && isNight) fr = findOverlap(day.free, m+1440, m+1470);
+  const fr = findOverlap(day.free, m, m+30);
   if(fr) return { cls:"free", tip: "Свободно ("+fmt(fr.s)+"-"+fmt(fr.e)+")" };
-  return { cls:"off", tip:"Нерабочее время" };
+  return { cls:"off", tip:"Студия закрыта" };
 }
 function hallGridModal(id, h, ds){
   const s = studio(id), hall = s.halls[h], day = dayOf(s, h, ds);
   const periods = [
-    { label:"Утро", from:360, to:720, night:false },
-    { label:"День", from:720, to:1080, night:false },
-    { label:"Вечер", from:1080, to:1440, night:false },
-    { label:"Ночь", from:0, to:360, night:true }
+    { label:"Утро", from:420, to:720 },
+    { label:"День", from:720, to:1080 },
+    { label:"Вечер", from:1080, to:1260 }
   ];
   let rows = "";
   for(const p of periods){
     let slots = "";
     for(let m=p.from; m<p.to; m+=30){
-      const st = slotInfo(day, m, p.night);
+      const st = slotInfo(day, m);
       slots += `<span class="tslot ${st.cls}" title="${esc(st.tip)}">${fmt(m)}</span>`;
     }
     rows += `<div class="trow"><div class="tlabel">${p.label}</div><div class="tslots">${slots}</div></div>`;
@@ -357,7 +369,6 @@ function hallGridModal(id, h, ds){
     <div class="tleg">
       <span><i class="tl-box free"></i>Свободно</span>
       <span><i class="tl-box busy"></i>Занято</span>
-      <span><i class="tl-box off"></i>Нерабочее время</span>
     </div>`;
   openModal(html);
 }
