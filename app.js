@@ -24,14 +24,17 @@ const CALENDAR_LINKS = {
 
 const D = window.DATA;
 const MONTHS = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
 const WD = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
 const COPY_ICO = `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
 const CHECK_ICO = `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
+const EXT_ICO = `<svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
 const state = { view:"agg", hall:{}, month:{y:+D.today.slice(0,4), m:+D.today.slice(5,7)-1},
   mode:"busy", aggMode:"free", aggDate:D.today, aggMonth:{y:+D.today.slice(0,4), m:+D.today.slice(5,7)-1},
   minDur:60, modal:null, mmode:"busy", modalMinH:0 };
 
 const fmt = m => String(Math.floor(m/60)%24).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+const fmtDateRu = ds => (+ds.slice(8,10))+" "+MONTHS_GEN[+ds.slice(5,7)-1]+" "+ds.slice(0,4);
 const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const iso = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const plural = (n,a,b,c)=>{n=Math.abs(n)%100;const d=n%10;if(n>10&&n<20)return c;if(d>1&&d<5)return b;if(d===1)return a;return c;};
@@ -48,10 +51,15 @@ const busyTip = e => fmt(e.s)+"-"+fmt(e.e)+(evName(e)?" · "+evName(e):"");
 const hallTip = x => "Не удалось обновить: "+x.error+(x.updated?" (актуальные данные на "+x.updated+")":"");
 
 function studioVk(s){ return (CALENDAR_LINKS[s.name] && CALENDAR_LINKS[s.name].vk) || ""; }
-function copyBtn(s){
-  const url = studioVk(s);
-  if(!url) return "";
-  return `<button type="button" class="copy-btn" data-action="copy" data-url="${esc(url)}" title="Скопировать ссылку: ${esc(url)}" aria-label="Скопировать ссылку на ${esc(s.name)}">${COPY_ICO}</button>`;
+function studioSite(s){ const c=CALENDAR_LINKS[s.name]||{}; return c.site || c.vk || ""; }
+function studioBtns(s){
+  const vk = studioVk(s), site = studioSite(s);
+  if(!vk && !site) return "";
+  return `<span class="st-acts">${
+    vk ? `<button type="button" class="copy-btn" data-action="copy" data-url="${esc(vk)}" title="Скопировать ссылку: ${esc(vk)}" aria-label="Скопировать ссылку на ${esc(s.name)}">${COPY_ICO}</button>` : ""
+  }${
+    site ? `<a class="copy-btn" href="${esc(site)}" target="_blank" rel="noopener noreferrer" data-action="extlink" title="Открыть страницу студии: ${esc(site)}" aria-label="Открыть страницу ${esc(s.name)}">${EXT_ICO}</a>` : ""
+  }</span>`;
 }
 function fallbackCopy(text, done){
   const ta = document.createElement("textarea");
@@ -115,7 +123,7 @@ function renderSidebar(){
     const hi = state.hall[s.id]||0;
     h += `<div class="studio-item ${state.view===s.id?"active":""}" data-action="studio" data-id="${s.id}">
       <div class="studio-top"><div class="studio-av" style="background:${s.color}1a;color:${s.color}">${esc(s.name[0])}</div>
-      <div><div class="studio-name">${esc(s.name)}${copyBtn(s)}</div><div class="studio-addr">${esc(s.address)}</div></div>
+      <div><div class="studio-name">${esc(s.name)}${studioBtns(s)}</div><div class="studio-addr">${esc(s.address)}</div></div>
       ${s.error&&!s.halls.length?`<span class="hall-err" title="${esc("Не удалось обновить: "+s.error)}">!</span>`:""}</div>
       <div class="hall-list">${s.halls.map((x,i)=>`<div class="hall-link ${state.view===s.id&&hi===i?"active":""}" data-action="hall" data-id="${s.id}" data-h="${i}">
         <span class="hall-name">${esc(x.name)}</span>
@@ -173,7 +181,7 @@ function renderStudio(s){
     ? `<div class="cal-err" title="${esc(errMsg)}">Внимание, последний раз данные обновить не удалось${staleDt?", показаны актуальные на "+esc(staleDt):""}</div>`
     : "";
   return `<div class="card"><div class="cal-head">
-    <div class="cal-id"><h1 class="cal-h1">${esc(s.name)}</h1>${copyBtn(s)}<span class="cal-addr">${esc(s.address)}</span>${calUrl?`<a class="cal-link" href="${esc(calUrl)}" target="_blank" rel="noopener noreferrer">Календарь</a>`:""}</div>
+    <div class="cal-id"><h1 class="cal-h1">${esc(s.name)}</h1>${studioBtns(s)}<span class="cal-addr">${esc(s.address)}</span>${calUrl?`<a class="cal-link" href="${esc(calUrl)}" target="_blank" rel="noopener noreferrer">Календарь</a>`:""}</div>
     <div class="tabs">
       <button class="tab t-red ${state.mode==="busy"?"active":""}" data-action="mode" data-v="busy">Занятое время</button>
       <button class="tab t-green ${state.mode==="free"?"active":""}" data-action="mode" data-v="free">Свободное время</button></div>
@@ -218,7 +226,7 @@ function renderAgg(){
       const day=dayOf(s,h,ds);
       const errBadge = hall.error ? `<span class="hall-err" title="${esc(hallTip(hall))}">!</span>` : "";
       const hUrl = hallAggLink(s, hall.name);
-      const hnHTML = `<div class="hn"><div class="hn-top"><span>${esc(hall.name)}</span>${errBadge}</div>${hUrl?`<a class="cal-link" href="${esc(hUrl)}" target="_blank" rel="noopener noreferrer">Официальный календарь</a>`:""}</div>`;
+      const hnHTML = `<div class="hn"><div class="hn-top"><span class="hn-link" data-action="hallgrid" data-id="${s.id}" data-h="${h}" data-d="${ds}">${esc(hall.name)}</span>${errBadge}</div>${hUrl?`<a class="cal-link" href="${esc(hUrl)}" target="_blank" rel="noopener noreferrer">Официальный календарь</a>`:""}</div>`;
       if(!day){ rows+=`<div class="hall-row">${hnHTML}<span class="empty mut">нет данных</span></div>`; return; }
       if(freeMode){
         const fr=day.free.filter(f=>f.e-f.s>=state.minDur);
@@ -235,7 +243,7 @@ function renderAgg(){
     const stUrl = studioAggLink(s);
     cards+=`<div class="card res-card"><div class="res-head">
       <div class="studio-av" style="background:${s.color}1a;color:${s.color}">${esc(s.name[0])}</div>
-      <div><b>${esc(s.name)}${copyBtn(s)}</b><span>${esc(s.address)}</span></div>
+      <div><b>${esc(s.name)}${studioBtns(s)}</b><span>${esc(s.address)}</span></div>
       <span class="res-badge">${s.halls.length} ${plural(s.halls.length,"зал","зала","залов")}</span>${stUrl?`<a class="cal-link" href="${esc(stUrl)}" target="_blank" rel="noopener noreferrer">Официальный календарь</a>`:""}</div>
       ${rows}</div>`;
   }
@@ -296,10 +304,54 @@ function measureModal(){
   const l=document.getElementById("mlist"); if(l) l.style.minHeight=max+"px";
 }
 function dayModal(id,h,ds){ state.modal={id,h,ds}; state.mmode=state.mode; state.modalMinH=0; openModal(modalBody()); measureModal(); }
+
+function findOverlap(list, a, b){ return (list||[]).find(x => x.s < b && x.e > a) || null; }
+function slotInfo(day, m, isNight){
+  if(!day) return { cls:"off", tip:"Нет данных" };
+  let bu = findOverlap(day.busy, m, m+30);
+  if(!bu && isNight) bu = findOverlap(day.busy, m+1440, m+1470);
+  if(bu){
+    const name = evName(bu);
+    return { cls:"busy", tip: fmt(bu.s)+"-"+fmt(bu.e)+(name?" · "+name:" · занято") };
+  }
+  let fr = findOverlap(day.free, m, m+30);
+  if(!fr && isNight) fr = findOverlap(day.free, m+1440, m+1470);
+  if(fr) return { cls:"free", tip: "Свободно ("+fmt(fr.s)+"-"+fmt(fr.e)+")" };
+  return { cls:"off", tip:"Нерабочее время" };
+}
+function hallGridModal(id, h, ds){
+  const s = studio(id), hall = s.halls[h], day = dayOf(s, h, ds);
+  const periods = [
+    { label:"Утро", from:360, to:720, night:false },
+    { label:"День", from:720, to:1080, night:false },
+    { label:"Вечер", from:1080, to:1440, night:false },
+    { label:"Ночь", from:0, to:360, night:true }
+  ];
+  let rows = "";
+  for(const p of periods){
+    let slots = "";
+    for(let m=p.from; m<p.to; m+=30){
+      const st = slotInfo(day, m, p.night);
+      slots += `<span class="tslot ${st.cls}" title="${esc(st.tip)}">${fmt(m)}</span>`;
+    }
+    rows += `<div class="trow"><div class="tlabel">${p.label}</div><div class="tslots">${slots}</div></div>`;
+  }
+  const html = `<h3>${esc(hall.name)} · ${fmtDateRu(ds)}</h3>
+    <div class="msub">${esc(s.name)}</div>
+    <div class="tgrid">${rows}</div>
+    <div class="tleg">
+      <span><i class="tl-box free"></i>Свободно</span>
+      <span><i class="tl-box busy"></i>Занято</span>
+      <span><i class="tl-box off"></i>Нерабочее время</span>
+    </div>`;
+  openModal(html);
+}
+
 document.addEventListener("click", e=>{
   const a=e.target.closest("[data-action]"); if(!a)return;
   const act=a.dataset.action;
   if(act==="copy"){e.stopPropagation();copyText(a.dataset.url,a);return;}
+  if(act==="extlink"){e.stopPropagation();return;}
   const id=+a.dataset.id;
   if(act==="agg"){state.view="agg";render();}
   else if(act==="studio"){state.view=id;render();}
@@ -312,6 +364,7 @@ document.addEventListener("click", e=>{
   else if(act==="aprev"||act==="anext"){let m=state.aggMonth.m+(act==="aprev"?-1:1),y=state.aggMonth.y;if(m<0){m=11;y--;}if(m>11){m=0;y++;}state.aggMonth={y,m};render();}
   else if(act==="pick"){state.aggDate=a.dataset.d;state.aggMonth={y:+a.dataset.d.slice(0,4),m:+a.dataset.d.slice(5,7)-1};render();}
   else if(act==="more"){dayModal(id,+a.dataset.h,a.dataset.d);}
+  else if(act==="hallgrid"){hallGridModal(id,+a.dataset.h,a.dataset.d);}
 });
 document.addEventListener("change", e=>{
   const a=e.target.closest("[data-action]"); if(!a)return;
