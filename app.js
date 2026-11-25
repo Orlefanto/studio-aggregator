@@ -1,3 +1,9 @@
+// === ССЫЛКИ НА ФОТОСТУДИИ И ОФИЦИАЛЬНЫЕ КАЛЕНДАРИ ===
+// vk: ссылка на группу/страницу студии (копируется по иконке копирования и открывается по иконке перехода).
+// site: необязательно — если у студии есть отдельный сайт помимо vk, укажи его тут (иначе иконка перехода откроет vk).
+// studio / halls: ссылки на официальные календари.
+// Если у студии один общий календарь на все залы (как у «Свободы») — заполняй "studio", а "halls" оставь пустым {}.
+// Если у каждого зала свой отдельный календарь — заполняй "halls" по точному названию зала.
 const CALENDAR_LINKS = {
   "Ламер": {
     vk: "https://vk.ru/club201534051",
@@ -61,6 +67,14 @@ function studioBtns(s){
     site ? `<a class="copy-btn" href="${esc(site)}" target="_blank" rel="noopener noreferrer" data-action="extlink" title="Открыть страницу студии: ${esc(site)}" aria-label="Открыть страницу ${esc(s.name)}">${EXT_ICO}</a>` : ""
   }</span>`;
 }
+function showToast(msg){
+  let t = document.getElementById("toast");
+  if(!t){ t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._t);
+  t._t = setTimeout(()=>t.classList.remove("show"), 2200);
+}
 function fallbackCopy(text, done){
   const ta = document.createElement("textarea");
   ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
@@ -74,6 +88,7 @@ function copyText(text, btn){
     btn.innerHTML = CHECK_ICO;
     clearTimeout(btn._t);
     btn._t = setTimeout(()=>{ btn.classList.remove("copied"); btn.innerHTML = COPY_ICO; }, 1400);
+    showToast("Ссылка на группу студии скопирована в буфер обмена");
   };
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done));
