@@ -18,7 +18,26 @@ const studio = id => D.studios.find(s=>s.id===id);
 const dayOf = (s,h,ds) => (s.halls[h]&&s.halls[h].days[ds])||null;
 const evName = e => (e.t && !/^(busy|занято)$/i.test(String(e.t).trim())) ? e.t : "";
 const busyLabel = e => (e.s===0&&e.e===1440) ? "весь день занято" : fmt(e.s)+" занято (на "+dur(e.e-e.s)+")";
-const busyTip = e => fmt(e.s)+"–"+fmt(e.e)+(evName(e)?" · "+evName(e):"");
+const busyTip = e => fmt(e.s)+"-"+fmt(e.e)+(evName(e)?" · "+evName(e):"");
+const hallTip = x => "Не удалось обновить: "+x.error+(x.updated?" (актуальные данные на "+x.updated+")":"");
+
+function collectErrors(){
+  const errs = [];
+  for(const s of D.studios){
+    const bad = s.halls.filter(x=>x.error);
+    if(s.error && !s.halls.length){
+      errs.push(`${s.name}: не удалось обновить (нет сохранённых данных)`);
+    } else if(bad.length && bad.length === s.halls.length){
+      const dt = (bad.find(x=>x.updated)||{}).updated || s.updated;
+      errs.push(`${s.name}: не удалось обновить`+(dt?`, в календаре данные на ${dt}`:", нет сохранённых данных"));
+    } else {
+      for(const x of bad){
+        errs.push(`${s.name} (${x.name}): не удалось обновить`+(x.updated?`, в календаре данные на ${x.updated}`:", нет сохранённых данных"));
+      }
+    }
+  }
+  return errs;
+}
 
 function renderSidebar(){
   let h = `<div class="side-logo"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3v5.5M21 12h-5.5M12 21v-5.5M3 12h5.5"/></svg>Фотостудии</div>
@@ -30,10 +49,21 @@ function renderSidebar(){
     const hi = state.hall[s.id]||0;
     h += `<div class="studio-item ${state.view===s.id?"active":""}" data-action="studio" data-id="${s.id}">
       <div class="studio-top"><div class="studio-av" style="background:${s.color}1a;color:${s.color}">${esc(s.name[0])}</div>
-      <div><div class="studio-name">${esc(s.name)}</div><div class="studio-addr">${esc(s.address)}</div></div></div>
-      <div class="hall-list">${s.halls.map((x,i)=>`<div class="hall-link ${state.view===s.id&&hi===i?"active":""}" data-action="hall" data-id="${s.id}" data-h="${i}">${esc(x.name)}</div>`).join("")}</div></div>`;
+      <div><div class="studio-name">${esc(s.name)}</div><div class="studio-addr">${esc(s.address)}</div></div>
+      ${s.error&&!s.halls.length?`<span class="hall-err" title="${esc("Не удалось обновить: "+s.error)}">!</span>`:""}</div>
+      <div class="hall-list">${s.halls.map((x,i)=>`<div class="hall-link ${state.view===s.id&&hi===i?"active":""}" data-action="hall" data-id="${s.id}" data-h="${i}">
+        <span class="hall-name">${esc(x.name)}</span>
+        ${x.error?`<span class="hall-err" title="${esc(hallTip(x))}">!</span>`:""}
+      </div>`).join("")}</div></div>`;
   }
-  h += `<div class="side-foot"><span class="dot"></span><div><b>Данные собраны</b><span>${esc(D.generated)} · обновить: run.bat</span></div></div>`;
+  const errs = collectErrors();
+  h += `<div class="side-foot ${errs.length?"has-err":""}">
+    <div class="sf-main">
+      <span class="dot ${errs.length?"err":""}"></span>
+      <div><b>Актуальные данные на:</b><span>${esc(D.generated)} · каждые ~10 мин (06:00–00:00)</span></div>
+    </div>
+    ${errs.length?`<div class="side-service">${errs.map(e=>`<div>⚠ ${esc(e)}</div>`).join("")}</div>`:""}
+  </div>`;
   document.getElementById("sidebar").innerHTML = h;
 }
 
@@ -52,7 +82,7 @@ function gridHTML(s, hi){
       const show = items.length>5 ? items.slice(0,4) : items;
       let cell = show.map(e=> state.mode==="busy"
         ? `<div class="ev busy" title="${esc(busyTip(e))}">${esc(busyLabel(e))}</div>`
-        : `<div class="ev free" title="свободно ${dur(e.e-e.s)}">${fmt(e.s)}–${fmt(e.e)}</div>`).join("");
+        : `<div class="ev free" title="свободно ${dur(e.e-e.s)}">${fmt(e.s)}-${fmt(e.e)}</div>`).join("");
       if(items.length>5) cell += `<div class="more" data-action="more" data-id="${s.id}" data-h="${hi}" data-d="${ds}">ЕЩЕ ${items.length-4}</div>`;
       const sep = (k>0 && prevM!==null && d.getMonth()!==prevM) ? ` mstart" data-m="${MONTHS[d.getMonth()].toUpperCase()}` : "";
       const head = ds===D.today
@@ -69,18 +99,25 @@ function gridHTML(s, hi){
 function renderStudio(s){
   const hi = state.hall[s.id]||0, {y,m} = state.month;
   const cur = y+"-"+String(m+1).padStart(2,"0");
+  const hall = s.halls[hi];
+  const errMsg = (hall && hall.error) || s.error;
+  const staleDt = (hall && hall.updated) || s.updated;
+  const errBanner = errMsg
+    ? `<div class="cal-err" title="${esc(errMsg)}">Внимание, последний раз данные обновить не удалось${staleDt?", показаны актуальные на "+esc(staleDt):""}</div>`
+    : "";
   return `<div class="card"><div class="cal-head">
     <div class="cal-id"><h1 class="cal-h1">${esc(s.name)}</h1><span class="cal-addr">${esc(s.address)}</span></div>
     <div class="tabs">
       <button class="tab t-red ${state.mode==="busy"?"active":""}" data-action="mode" data-v="busy">Занятое время</button>
       <button class="tab t-green ${state.mode==="free"?"active":""}" data-action="mode" data-v="free">Свободное время</button></div>
+    ${errBanner}
     <div class="cal-tools">
-      <button class="btn btn-icon" data-action="prev" ${cur<=D.range.from.slice(0,7)?"disabled":""}>←</button>
+      <button class="btn btn-icon" data-action="prev" ${cur<=D.range.from.slice(0,7)?"disabled":""}>&lt;-</button>
       <button class="btn" data-action="today" title="Вернуться к текущему месяцу">${MONTHS[m]} ${y}</button>
-      <button class="btn btn-icon" data-action="next" ${cur>=D.range.to.slice(0,7)?"disabled":""}>→</button>
+      <button class="btn btn-icon" data-action="next" ${cur>=D.range.to.slice(0,7)?"disabled":""}>-&gt;</button>
       ${s.halls.length>1?`<select class="select" data-action="hallsel" data-id="${s.id}">${s.halls.map((x,i)=>`<option value="${i}" ${i===hi?"selected":""}>${esc(x.name)}</option>`).join("")}</select>`:""}
     </div></div>
-    ${s.error?`<p style="padding:0 16px 16px;color:var(--red)">Не удалось получить данные: ${esc(s.error)}</p>`:gridHTML(s,hi)}
+    ${s.halls.length?gridHTML(s,hi):`<p style="padding:0 16px 16px;color:var(--red)">Не удалось получить данные: ${esc(s.error||"нет данных")}</p>`}
   </div>`;
 }
 
@@ -94,8 +131,8 @@ function miniCal(){
   const cur=y+"-"+String(m+1).padStart(2,"0");
   const busyDots = state.aggMode==="busy";
   let h=`<div class="card"><div class="mini-head"><b>${MONTHS[m]} ${y}</b>
-    <span><button class="btn btn-icon" data-action="aprev" ${cur<=D.range.from.slice(0,7)?"disabled":""}>←</button>
-    <button class="btn btn-icon" data-action="anext" ${cur>=D.range.to.slice(0,7)?"disabled":""}>→</button></span></div>
+    <span><button class="btn btn-icon" data-action="aprev" ${cur<=D.range.from.slice(0,7)?"disabled":""}>&lt;-</button>
+    <button class="btn btn-icon" data-action="anext" ${cur>=D.range.to.slice(0,7)?"disabled":""}>-&gt;</button></span></div>
     <div class="mini-grid">${WD.map(w=>`<div class="wd">${w[0]}</div>`).join("")}`;
   for(let w=0;w<weeks;w++)for(let k=0;k<7;k++){
     const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+w*7+k), ds=iso(d);
@@ -112,17 +149,18 @@ function renderAgg(){
     let rows="";
     s.halls.forEach((hall,h)=>{
       const day=dayOf(s,h,ds);
-      if(!day){ rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}</div><span class="empty mut">нет данных</span></div>`; return; }
+      const errBadge = hall.error ? `<span class="hall-err" title="${esc(hallTip(hall))}">!</span>` : "";
+      if(!day){ rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><span class="empty mut">нет данных</span></div>`; return; }
       if(freeMode){
         const fr=day.free.filter(f=>f.e-f.s>=state.minDur);
         if(fr.length){ hallsHit++; total+=fr.length;
-          rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}</div><div class="chips">${fr.map(f=>`<span class="chip" title="свободно ${dur(f.e-f.s)}">${fmt(f.s)}–${fmt(f.e)}<i>${dur(f.e-f.s)}</i></span>`).join("")}</div></div>`;
-        } else rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}</div><span class="empty">всё занято</span></div>`;
+          rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><div class="chips">${fr.map(f=>`<span class="chip" title="свободно ${dur(f.e-f.s)}">${fmt(f.s)}-${fmt(f.e)}<i>${dur(f.e-f.s)}</i></span>`).join("")}</div></div>`;
+        } else rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><span class="empty">всё занято</span></div>`;
       } else {
         const bu=day.busy;
         if(bu.length){ hallsHit++; total+=bu.length;
-          rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}</div><div class="chips">${bu.map(e=>`<span class="chip busy" title="${esc(busyTip(e))}">${fmt(e.s)}–${fmt(e.e)}<i>${dur(e.e-e.s)}</i></span>`).join("")}</div></div>`;
-        } else rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}</div><span class="empty mut">нет броней</span></div>`;
+          rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><div class="chips">${bu.map(e=>`<span class="chip busy" title="${esc(busyTip(e))}">${fmt(e.s)}-${fmt(e.e)}<i>${dur(e.e-e.s)}</i></span>`).join("")}</div></div>`;
+        } else rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><span class="empty mut">нет броней</span></div>`;
       }
     });
     cards+=`<div class="card res-card"><div class="res-head">
@@ -163,8 +201,8 @@ function modalRows(mode){
   const {id,h,ds}=state.modal, day=dayOf(studio(id),h,ds);
   const items=day?(mode==="busy"?day.busy:day.free):[];
   return items.map(e=>mode==="busy"
-    ?`<div class="ev busy">${fmt(e.s)}–${fmt(e.e)} · занято (на ${dur(e.e-e.s)})${evName(e)?" · "+esc(evName(e)):""}</div>`
-    :`<div class="ev free">${fmt(e.s)}–${fmt(e.e)} · ${dur(e.e-e.s)}</div>`).join("")||'<div class="msub">—</div>';
+    ?`<div class="ev busy">${fmt(e.s)}-${fmt(e.e)} · занято (на ${dur(e.e-e.s)})${evName(e)?" · "+esc(evName(e)):""}</div>`
+    :`<div class="ev free">${fmt(e.s)}-${fmt(e.e)} · ${dur(e.e-e.s)}</div>`).join("")||'<div class="msub">-</div>';
 }
 function modalBody(){
   const {id,h,ds}=state.modal, s=studio(id);
