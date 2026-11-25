@@ -1,3 +1,27 @@
+// === ССЫЛКИ НА ОФИЦИАЛЬНЫЕ КАЛЕНДАРИ ===
+// Если у студии один общий календарь на все залы (как у «Свободы») — заполняй "studio", а "halls" оставь пустым {}.
+// Если у каждого зала свой отдельный календарь — заполняй "halls" по точному названию зала.
+const CALENDAR_LINKS = {
+  "Ламер": {
+    studio: "https://calendar.google.com/calendar/u/0/embed?src=ekaterinakolpasikova65@gmail.com&ctz=UTC",
+    halls: {
+      "Ленина, 95А": "https://calendar.google.com/calendar/u/0/embed?src=ekaterinakolpasikova65@gmail.com&ctz=UTC"
+    }
+  },
+  "ЯнаФОТО": {
+    studio: "https://calendar.google.com/calendar/u/0/embed?src=yanafoto2025@gmail.com&ctz=Europe/Moscow",
+    halls: {
+      "АЛЕКСАНДР (ТЦ Европейский, 2 эт)": "https://calendar.google.com/calendar/u/0/embed?src=yanafoto2025@gmail.com&ctz=Europe/Moscow",
+      "МЕТАЛЛ (ТЦ Европейский, 2 эт)": "https://calendar.google.com/calendar/u/0/embed?src=eurometall01.08.2024@gmail.com&ctz=Europe/Moscow",
+      "ПЕРВЫЙ ЗАЛ (ул. Щорса)": "https://calendar.google.com/calendar/u/0/embed?src=h36qi6c1hb2rc270t912cen41g@group.calendar.google.com&ctz=Europe/Moscow"
+    }
+  },
+  "Свобода": {
+    studio: "https://appevent.ru/w/18285",
+    halls: {}
+  }
+};
+
 const D = window.DATA;
 const MONTHS = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 const WD = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
@@ -20,6 +44,21 @@ const evName = e => (e.t && !/^(busy|занято)$/i.test(String(e.t).trim())) 
 const busyLabel = e => (e.s===0&&e.e===1440) ? "весь день занято" : fmt(e.s)+" занято (на "+dur(e.e-e.s)+")";
 const busyTip = e => fmt(e.s)+"-"+fmt(e.e)+(evName(e)?" · "+evName(e):"");
 const hallTip = x => "Не удалось обновить: "+x.error+(x.updated?" (актуальные данные на "+x.updated+")":"");
+
+function studioAggLink(s){
+  const cfg = CALENDAR_LINKS[s.name] || {};
+  const hasHallLinks = cfg.halls && Object.values(cfg.halls).some(Boolean);
+  if(hasHallLinks) return "";
+  return cfg.studio || s.url || "";
+}
+function hallAggLink(s, hallName){
+  const cfg = CALENDAR_LINKS[s.name] || {};
+  return (cfg.halls && cfg.halls[hallName]) || "";
+}
+function studioPageLink(s, hallName){
+  const cfg = CALENDAR_LINKS[s.name] || {};
+  return (cfg.halls && cfg.halls[hallName]) || cfg.studio || s.url || "";
+}
 
 function collectErrors(){
   const errs = [];
@@ -60,7 +99,7 @@ function renderSidebar(){
   h += `<div class="side-foot ${errs.length?"has-err":""}">
     <div class="sf-main">
       <span class="dot ${errs.length?"err":""}"></span>
-      <div><b>Актуальные данные на:</b><span>${esc(D.generated)} · каждые ~10 мин (06:00–00:00)</span></div>
+      <div><b>Актуальные данные на:</b><span>${esc(D.generated)} · каждые ~10 мин</span></div>
     </div>
     ${errs.length?`<div class="side-service">${errs.map(e=>`<div>⚠ ${esc(e)}</div>`).join("")}</div>`:""}
   </div>`;
@@ -100,13 +139,14 @@ function renderStudio(s){
   const hi = state.hall[s.id]||0, {y,m} = state.month;
   const cur = y+"-"+String(m+1).padStart(2,"0");
   const hall = s.halls[hi];
+  const calUrl = studioPageLink(s, hall && hall.name);
   const errMsg = (hall && hall.error) || s.error;
   const staleDt = (hall && hall.updated) || s.updated;
   const errBanner = errMsg
     ? `<div class="cal-err" title="${esc(errMsg)}">Внимание, последний раз данные обновить не удалось${staleDt?", показаны актуальные на "+esc(staleDt):""}</div>`
     : "";
   return `<div class="card"><div class="cal-head">
-    <div class="cal-id"><h1 class="cal-h1">${esc(s.name)}</h1><span class="cal-addr">${esc(s.address)}</span></div>
+    <div class="cal-id"><h1 class="cal-h1">${esc(s.name)}</h1><span class="cal-addr">${esc(s.address)}</span>${calUrl?`<a class="cal-link" href="${esc(calUrl)}" target="_blank" rel="noopener noreferrer">Календарь</a>`:""}</div>
     <div class="tabs">
       <button class="tab t-red ${state.mode==="busy"?"active":""}" data-action="mode" data-v="busy">Занятое время</button>
       <button class="tab t-green ${state.mode==="free"?"active":""}" data-action="mode" data-v="free">Свободное время</button></div>
@@ -150,23 +190,26 @@ function renderAgg(){
     s.halls.forEach((hall,h)=>{
       const day=dayOf(s,h,ds);
       const errBadge = hall.error ? `<span class="hall-err" title="${esc(hallTip(hall))}">!</span>` : "";
-      if(!day){ rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><span class="empty mut">нет данных</span></div>`; return; }
+      const hUrl = hallAggLink(s, hall.name);
+      const hnHTML = `<div class="hn"><div class="hn-top"><span>${esc(hall.name)}</span>${errBadge}</div>${hUrl?`<a class="cal-link" href="${esc(hUrl)}" target="_blank" rel="noopener noreferrer">Официальный календарь</a>`:""}</div>`;
+      if(!day){ rows+=`<div class="hall-row">${hnHTML}<span class="empty mut">нет данных</span></div>`; return; }
       if(freeMode){
         const fr=day.free.filter(f=>f.e-f.s>=state.minDur);
         if(fr.length){ hallsHit++; total+=fr.length;
-          rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><div class="chips">${fr.map(f=>`<span class="chip" title="свободно ${dur(f.e-f.s)}">${fmt(f.s)}-${fmt(f.e)}<i>${dur(f.e-f.s)}</i></span>`).join("")}</div></div>`;
-        } else rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><span class="empty">всё занято</span></div>`;
+          rows+=`<div class="hall-row">${hnHTML}<div class="chips">${fr.map(f=>`<span class="chip" title="свободно ${dur(f.e-f.s)}">${fmt(f.s)}-${fmt(f.e)}<i>${dur(f.e-f.s)}</i></span>`).join("")}</div></div>`;
+        } else rows+=`<div class="hall-row">${hnHTML}<span class="empty">всё занято</span></div>`;
       } else {
         const bu=day.busy;
         if(bu.length){ hallsHit++; total+=bu.length;
-          rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><div class="chips">${bu.map(e=>`<span class="chip busy" title="${esc(busyTip(e))}">${fmt(e.s)}-${fmt(e.e)}<i>${dur(e.e-e.s)}</i></span>`).join("")}</div></div>`;
-        } else rows+=`<div class="hall-row"><div class="hn">${esc(hall.name)}${errBadge}</div><span class="empty mut">нет броней</span></div>`;
+          rows+=`<div class="hall-row">${hnHTML}<div class="chips">${bu.map(e=>`<span class="chip busy" title="${esc(busyTip(e))}">${fmt(e.s)}-${fmt(e.e)}<i>${dur(e.e-e.s)}</i></span>`).join("")}</div></div>`;
+        } else rows+=`<div class="hall-row">${hnHTML}<span class="empty mut">нет броней</span></div>`;
       }
     });
+    const stUrl = studioAggLink(s);
     cards+=`<div class="card res-card"><div class="res-head">
       <div class="studio-av" style="background:${s.color}1a;color:${s.color}">${esc(s.name[0])}</div>
       <div><b>${esc(s.name)}</b><span>${esc(s.address)}</span></div>
-      <span class="res-badge">${s.halls.length} ${plural(s.halls.length,"зал","зала","залов")}</span></div>
+      <span class="res-badge">${s.halls.length} ${plural(s.halls.length,"зал","зала","залов")}</span>${stUrl?`<a class="cal-link" href="${esc(stUrl)}" target="_blank" rel="noopener noreferrer">Официальный календарь</a>`:""}</div>
       ${rows}</div>`;
   }
   const sum = freeMode
