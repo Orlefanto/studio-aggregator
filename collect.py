@@ -53,7 +53,7 @@ def merge(iv):
 def gcal_events(src, d0, d1, tz):
     S = requests.Session()
     S.headers.update({"User-Agent": "Mozilla/5.0"})
-    key, out = CFG.get("gcal_api_key", ""), []
+        key, out = (CFG.get("gcal_api_key", "") or os.environ.get("GCAL_API_KEY", "")), []
     if key:
         url = "https://www.googleapis.com/calendar/v3/calendars/" + urllib.parse.quote(src, safe="") + "/events"
         params = {"key": key, "singleEvents": "true", "orderBy": "startTime", "maxResults": 2500,
