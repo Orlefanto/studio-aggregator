@@ -1,0 +1,45 @@
+{
+  "months_back": 1,
+  "months_forward": 2,
+  "pause_sec": 0.3,
+  "appevent_pause": 0.5,
+  "appevent_days": 30,
+  "workers": 10,
+  "gcal_api_key": "",
+  "studios": [
+    {
+      "name": "Ламер",
+      "address": "ул. Ленина, 95А",
+      "platform": "gcal",
+      "enabled": true,
+      "url": "https://calendar.google.com/calendar/u/0/embed?src=ekaterinakolpasikova65@gmail.com&ctz=UTC",
+      "utc_offset": 0,
+      "work": { "from": 9, "to": 21 },
+      "calendars": [
+        { "name": "Ленина, 95А", "src": "ekaterinakolpasikova65@gmail.com" }
+      ]
+    },
+    {
+      "name": "ЯнаФОТО",
+      "address": "ТЦ Европейский / ул. Щорса",
+      "platform": "gcal",
+      "enabled": true,
+      "url": "https://calendar.google.com/calendar/u/0/embed?src=yanafoto2025@gmail.com&ctz=Europe/Moscow",
+      "utc_offset": 3,
+      "work": { "from": 8, "to": 22 },
+      "calendars": [
+        { "name": "АЛЕКСАНДР (ТЦ Европейский, 2 эт)", "src": "yanafoto2025@gmail.com" },
+        { "name": "МЕТАЛЛ (ТЦ Европейский, 2 эт)", "src": "eurometall01.08.2024@gmail.com" },
+        { "name": "ПЕРВЫЙ ЗАЛ (ул. Щорса)", "src": "h36qi6c1hb2rc270t912cen41g@group.calendar.google.com" }
+      ]
+    },
+    {
+      "name": "Свобода",
+      "address": "ул. Заводская, 41",
+      "platform": "appevent",
+      "enabled": true,
+      "url": "https://appevent.ru/w/18285",
+      "include_dressing": true
+    }
+  ]
+}
