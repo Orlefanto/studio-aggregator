@@ -1,14 +1,13 @@
-// === ССЫЛКИ НА ОФИЦИАЛЬНЫЕ КАЛЕНДАРИ ===
-// Если у студии один общий календарь на все залы (как у «Свободы») — заполняй "studio", а "halls" оставь пустым {}.
-// Если у каждого зала свой отдельный календарь — заполняй "halls" по точному названию зала.
 const CALENDAR_LINKS = {
   "Ламер": {
+    vk: "https://vk.ru/club201534051",
     studio: "https://calendar.google.com/calendar/u/0/embed?src=ekaterinakolpasikova65@gmail.com&ctz=UTC",
     halls: {
       "Ленина, 95А": "https://calendar.google.com/calendar/u/0/embed?src=ekaterinakolpasikova65@gmail.com&ctz=UTC"
     }
   },
   "ЯнаФОТО": {
+    vk: "https://vk.ru/clubyanafoto",
     studio: "https://calendar.google.com/calendar/u/0/embed?src=yanafoto2025@gmail.com&ctz=Europe/Moscow",
     halls: {
       "АЛЕКСАНДР (ТЦ Европейский, 2 эт)": "https://calendar.google.com/calendar/u/0/embed?src=yanafoto2025@gmail.com&ctz=Europe/Moscow",
@@ -17,6 +16,7 @@ const CALENDAR_LINKS = {
     }
   },
   "Свобода": {
+    vk: "https://vk.ru/svoboda43",
     studio: "https://appevent.ru/w/18285",
     halls: {}
   }
@@ -25,6 +25,8 @@ const CALENDAR_LINKS = {
 const D = window.DATA;
 const MONTHS = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 const WD = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+const COPY_ICO = `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+const CHECK_ICO = `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
 const state = { view:"agg", hall:{}, month:{y:+D.today.slice(0,4), m:+D.today.slice(5,7)-1},
   mode:"busy", aggMode:"free", aggDate:D.today, aggMonth:{y:+D.today.slice(0,4), m:+D.today.slice(5,7)-1},
   minDur:60, modal:null, mmode:"busy", modalMinH:0 };
@@ -44,6 +46,31 @@ const evName = e => (e.t && !/^(busy|занято)$/i.test(String(e.t).trim())) 
 const busyLabel = e => (e.s===0&&e.e===1440) ? "весь день занято" : fmt(e.s)+" занято (на "+dur(e.e-e.s)+")";
 const busyTip = e => fmt(e.s)+"-"+fmt(e.e)+(evName(e)?" · "+evName(e):"");
 const hallTip = x => "Не удалось обновить: "+x.error+(x.updated?" (актуальные данные на "+x.updated+")":"");
+
+function studioVk(s){ return (CALENDAR_LINKS[s.name] && CALENDAR_LINKS[s.name].vk) || ""; }
+function copyBtn(s){
+  const url = studioVk(s);
+  if(!url) return "";
+  return `<button type="button" class="copy-btn" data-action="copy" data-url="${esc(url)}" title="Скопировать ссылку: ${esc(url)}" aria-label="Скопировать ссылку на ${esc(s.name)}">${COPY_ICO}</button>`;
+}
+function fallbackCopy(text, done){
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); done(); } catch(e) {}
+  ta.remove();
+}
+function copyText(text, btn){
+  const done = () => {
+    btn.classList.add("copied");
+    btn.innerHTML = CHECK_ICO;
+    clearTimeout(btn._t);
+    btn._t = setTimeout(()=>{ btn.classList.remove("copied"); btn.innerHTML = COPY_ICO; }, 1400);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
 
 function studioAggLink(s){
   const cfg = CALENDAR_LINKS[s.name] || {};
@@ -88,7 +115,7 @@ function renderSidebar(){
     const hi = state.hall[s.id]||0;
     h += `<div class="studio-item ${state.view===s.id?"active":""}" data-action="studio" data-id="${s.id}">
       <div class="studio-top"><div class="studio-av" style="background:${s.color}1a;color:${s.color}">${esc(s.name[0])}</div>
-      <div><div class="studio-name">${esc(s.name)}</div><div class="studio-addr">${esc(s.address)}</div></div>
+      <div><div class="studio-name">${esc(s.name)}${copyBtn(s)}</div><div class="studio-addr">${esc(s.address)}</div></div>
       ${s.error&&!s.halls.length?`<span class="hall-err" title="${esc("Не удалось обновить: "+s.error)}">!</span>`:""}</div>
       <div class="hall-list">${s.halls.map((x,i)=>`<div class="hall-link ${state.view===s.id&&hi===i?"active":""}" data-action="hall" data-id="${s.id}" data-h="${i}">
         <span class="hall-name">${esc(x.name)}</span>
@@ -146,7 +173,7 @@ function renderStudio(s){
     ? `<div class="cal-err" title="${esc(errMsg)}">Внимание, последний раз данные обновить не удалось${staleDt?", показаны актуальные на "+esc(staleDt):""}</div>`
     : "";
   return `<div class="card"><div class="cal-head">
-    <div class="cal-id"><h1 class="cal-h1">${esc(s.name)}</h1><span class="cal-addr">${esc(s.address)}</span>${calUrl?`<a class="cal-link" href="${esc(calUrl)}" target="_blank" rel="noopener noreferrer">Календарь</a>`:""}</div>
+    <div class="cal-id"><h1 class="cal-h1">${esc(s.name)}</h1>${copyBtn(s)}<span class="cal-addr">${esc(s.address)}</span>${calUrl?`<a class="cal-link" href="${esc(calUrl)}" target="_blank" rel="noopener noreferrer">Календарь</a>`:""}</div>
     <div class="tabs">
       <button class="tab t-red ${state.mode==="busy"?"active":""}" data-action="mode" data-v="busy">Занятое время</button>
       <button class="tab t-green ${state.mode==="free"?"active":""}" data-action="mode" data-v="free">Свободное время</button></div>
@@ -208,7 +235,7 @@ function renderAgg(){
     const stUrl = studioAggLink(s);
     cards+=`<div class="card res-card"><div class="res-head">
       <div class="studio-av" style="background:${s.color}1a;color:${s.color}">${esc(s.name[0])}</div>
-      <div><b>${esc(s.name)}</b><span>${esc(s.address)}</span></div>
+      <div><b>${esc(s.name)}${copyBtn(s)}</b><span>${esc(s.address)}</span></div>
       <span class="res-badge">${s.halls.length} ${plural(s.halls.length,"зал","зала","залов")}</span>${stUrl?`<a class="cal-link" href="${esc(stUrl)}" target="_blank" rel="noopener noreferrer">Официальный календарь</a>`:""}</div>
       ${rows}</div>`;
   }
@@ -271,7 +298,9 @@ function measureModal(){
 function dayModal(id,h,ds){ state.modal={id,h,ds}; state.mmode=state.mode; state.modalMinH=0; openModal(modalBody()); measureModal(); }
 document.addEventListener("click", e=>{
   const a=e.target.closest("[data-action]"); if(!a)return;
-  const act=a.dataset.action, id=+a.dataset.id;
+  const act=a.dataset.action;
+  if(act==="copy"){e.stopPropagation();copyText(a.dataset.url,a);return;}
+  const id=+a.dataset.id;
   if(act==="agg"){state.view="agg";render();}
   else if(act==="studio"){state.view=id;render();}
   else if(act==="hall"){e.stopPropagation();state.view=id;state.hall[id]=+a.dataset.h;render();}
